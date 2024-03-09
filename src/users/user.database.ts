@@ -8,7 +8,7 @@ const db = mysql.createConnection({
     host : "localhost",
     user : "root",
     password : "",
-    database : "intprog_db"
+    database : "rest_db"
 })
 
 const FIND_BY_ID = "SELECT * FROM users WHERE id = ?";

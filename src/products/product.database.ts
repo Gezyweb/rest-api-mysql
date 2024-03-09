@@ -1,80 +1,96 @@
-import {Product, UnitProduct, Products} from "./product.interface";
-import { v4 as random} from "uuid"
-import fs from "fs"
+import { Product, UnitProduct, Products } from "./product.interface";
+import { v4 as random } from "uuid";
+import mysql from "mysql";
 
-let products : Products = loadProducts()
+const db = mysql.createConnection({
+    host: "localhost",
+    user: "root",
+    password: "",
+    database: "rest_db"
+});
 
-function loadProducts(): Products{
-    try{
-        const data = fs.readFileSync('./products.json', 'utf-8')
-        return JSON.parse(data)
-    }catch(error){
-        console.log(`Error ${error}`)
-        return {}
+db.connect((err) => {
+    if (err) {
+        console.error('Error connecting to database: ', err);
+        return;
     }
-}
+    console.log('Connected to database');
+});
 
-function saveProducts(){
-    try{
-        fs.writeFileSync('./products.json', JSON.stringify(products), 'utf-8')
-        console.log(`Products saved successfully`)
-    }catch(error){
-        console.log(`Error ${error}`)
-    }
-}
+process.on('SIGINT', () => {
+    db.end((err) => {
+        if (err) {
+            console.error('Error closing database connection: ', err);
+        } else {
+            console.log('Database connection closed');
+        }
+        process.exit();
+    });
+});
 
-export const findAll = async() : Promise<UnitProduct[]> => Object.values(products)
+export const findAll = async (): Promise<UnitProduct[]> => {
+    return new Promise((resolve, reject) => {
+        db.query('SELECT * FROM product', (err, rows) => {
+            if (err) {
+                reject(err);
+            } else {
+                resolve(rows);
+            }
+        });
+    });
+};
 
-export const findOne = async (id : string) : Promise<UnitProduct> => products[id]
+export const findOne = async (id: string): Promise<UnitProduct> => {
+    return new Promise((resolve, reject) => {
+        db.query('SELECT * FROM product WHERE id = ?', [id], (err, rows) => {
+            if (err) {
+                reject(err);
+            } else {
+                resolve(rows[0]);
+            }
+        });
+    });
+};
 
-export const create = async (productInfo : Product) : Promise<null | UnitProduct> =>{
+export const create = async (productInfo: Product): Promise<null | UnitProduct> => {
+    const { name, price, quantity, image } = productInfo;
+    const id = random();
+    return new Promise((resolve, reject) => {
+        db.query('INSERT INTO product (id, name, price, quantity, image) VALUES (?, ?, ?, ?, ?)',
+            [id, name, price, quantity, image],
+            (err) => {
+                if (err) {
+                    reject(err);
+                } else {
+                    resolve({ id, name, price, quantity, image });
+                }
+            });
+    });
+};
 
-    let id = random()
+export const update = async (id: string, updateValues: Product): Promise<UnitProduct | null> => {
+    const { name, price, quantity, image } = updateValues;
+    return new Promise((resolve, reject) => {
+        db.query('UPDATE product SET name=?, price=?, quantity=?, image=? WHERE id=?',
+            [name, price, quantity, image, id],
+            (err) => {
+                if (err) {
+                    reject(err);
+                } else {
+                    resolve({ id, name, price, quantity, image });
+                }
+            });
+    });
+};
 
-    let product = await findOne(id)
-
-    while(product){
-        id = random()
-        await findOne(id)
-    }
-
-    products[id] = {
-        id : id,
-        ...productInfo
-    }
-
-    saveProducts()
-
-    return products[id]
-}
-
-export const update = async(id:string, updateValues : Product) : Promise <UnitProduct | null> => {
-    
-    const product = await findOne(id)
-
-    if(!product){
-        return null
-    }
-
-    products[id] = {
-        id,
-        ...updateValues
-    }
-
-    saveProducts()
-
-    return products[id]
-}
-
-export const remove = async (id : string) : Promise <null | void > => {
-
-    const product = await findOne(id)
-
-    if(!product){
-        return null
-    }
-
-    delete products[id]
-
-    saveProducts()
-}
+export const remove = async (id: string): Promise<null | void> => {
+    return new Promise((resolve, reject) => {
+        db.query('DELETE FROM product WHERE id=?', [id], (err) => {
+            if (err) {
+                reject(err);
+            } else {
+                resolve();
+            }
+        });
+    });
+};
